@@ -48,31 +48,6 @@ cat > <%= etc_path %>/puppet.conf << EOF
 <%= snippet 'puppet.conf' %>
 EOF
 
-<% if os_family == 'Redhat' -%>
-<% if os_major > 6 -%>
-puppet_unit=puppet
-/usr/bin/systemctl list-unit-files | grep -q puppetagent && puppet_unit=puppetagent
-/usr/bin/systemctl enable ${puppet_unit}
-<% end -%>
-/sbin/chkconfig --level 345 puppet on
-<% end -%>
-<% if os_family == 'Freebsd' -%>
-echo 'puppet_enable="YES"' >>/etc/rc.conf
-<% end -%>
-<% unless @host.param_true?('enable-puppetlabs-pc1-repo') -%>
-<% if os_family == 'Debian' -%>
-if [ -f "/etc/default/puppet" ]
-then
-/bin/sed -i 's/^START=no/START=yes/' /etc/default/puppet
-fi
-<%= bin_path %>/puppet agent --enable
-<% elsif os_family == 'Suse' -%>
-if [ -f "/etc/sysconfig/puppet" ]
-then
-/usr/bin/sed -ie s/^PUPPET_SERVER=.*/PUPPET_SERVER=<%= @host.puppetmaster.blank? ? '' : @host.puppetmaster %>/ /etc/sysconfig/puppet
-fi
-<% end -%>
-<% end -%>
 <%#
 IMPORTANT NOTE: Setting "run-puppet-in-installer" is UNSUPPORTED!
 
@@ -92,15 +67,10 @@ Note, that this is an *unsupported mode of operation* and not supported by Forem
 #
 # We work around that here until it gets fixed in Puppet (probably never for Puppet 3.x)
 mkdir -p /run/systemd/system
+puppet agent --enable
 <% end -%>
 <% end -%>
 # export a custom fact called 'is_installer' to allow detection of the installer environment in Puppet modules
 export FACTER_is_installer=true
 # passing a non-existent tag like "no_such_tag" to the puppet agent only initializes the node
-<%= bin_path %>/puppet agent --config <%= etc_path %>/puppet.conf --onetime <%= @host.param_true?('run-puppet-in-installer') ? '' : '--tags no_such_tag' %> <%= @host.puppetmaster.blank? ? '' : "--server #{@host.puppetmaster}" %> --no-daemonize
-<% if os_family == 'Suse' || (os_name == 'Debian' && os_major > 8) -%>
-<%= bin_path %>/puppet resource service puppet enable=true
-<% if @host.provision_method == 'image' -%>
-<%= bin_path %>/puppet resource service puppet ensure=running
-<% end -%>
-<% end -%>
+<%= bin_path %>/puppet agent --config <%= etc_path %>/puppet.conf --onetime <%= @host.param_true?('run-puppet-in-installer') ? '--tags bootstrap' : '--tags no_such_tag' %> <%= @host.puppetmaster.blank? ? '' : "--server #{@host.puppetmaster}" %> --no-daemonize

@@ -27,25 +27,13 @@ oses:
 /bin/echo <%= @host.shortname %> > /etc/hostname
 <% end -%>
 
-<% if @host.info['parameters']['realm'] && @host.realm && @host.realm.realm_type == 'FreeIPA' -%>
-<%= snippet 'freeipa_register' %>
-<% end -%>
-
 <%= snippet('remote_execution_ssh_keys') %>
-
-<% if chef_enabled %>
-<%= snippet 'chef_client' %>
-<% end -%>
 
 <% if puppet_enabled %>
 <% if @host.param_true?('enable-puppetlabs-pc1-repo') || @host.param_true?('enable-puppetlabs-repo') -%>
 <%= snippet 'puppetlabs_repo' %>
 <% end -%>
-<%= snippet 'puppet_setup' %>
-<% end -%>
-
-<% if salt_enabled %>
-<%= snippet 'saltstack_setup' %>
+<%= snippet 'webcrux puppet_setup' %>
 <% end -%>
 
 <%= snippet 'preseed_networking_setup' %>

@@ -6,7 +6,17 @@ oses:
 - Fedora
 - RedHat
 %>
-zerombr
-clearpart --all --initlabel
-autopart
+<%
+  installdevice = @host.params['installdevice'] ? @host.params['installdevice']               : 'default'
+  ondisk        = @host.params['installdevice'] ? "--ondisk=#{@host.params['installdevice']}" : ''
+  clear_osdisk  = @host.params['keepdevices']   ? "--drives=#{@host.params['installdevice']}" : ''
+%>
 
+zerombr
+clearpart --all --initlabel <%= clear_osdisk %>
+part /boot --fstype=xfs --size=512 --asprimary
+part pv.<%= installdevice %> <%= ondisk %> --size=5120 --grow --maxsize=10240 --asprimary
+part pv.ext <%= ondisk %> --grow
+volgroup vg_root pv.<%= installdevice %>
+  logvol swap --name=lv_swap --vgname=vg_root --size=256
+  logvol /    --name=lv_root --vgname=vg_root --fstype=xfs --size=4096 --grow
