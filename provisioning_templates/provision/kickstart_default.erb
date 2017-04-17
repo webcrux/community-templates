@@ -184,7 +184,7 @@ fi
 <% if @host.param_true?('enable-puppetlabs-pc1-repo') || @host.param_true?('enable-puppetlabs-repo') -%>
 <%= snippet 'puppetlabs_repo' %>
 <% end -%>
-<%= snippet 'webcrux puppet_setup' %>
+<%= snippet 'webcrux_puppet_setup' %>
 <% end -%>
 
 <% if @host.operatingsystem.name == 'OracleLinux' && @host.param_true?('disable-uek') -%>
