@@ -1,6 +1,6 @@
 <%#
 kind: PXELinux
-name: Kickstart default PXELinux
+name: kickstart_default
 oses:
 - CentOS
 - Fedora
@@ -51,7 +51,7 @@ oses:
   if @host.operatingsystem.name.match(/Atomic/i)
     options.push("inst.repo=#{@host.operatingsystem.medium_uri(@host)}")
   end
-  
+
   if @host.params['blacklist']
     options.push("modprobe.blacklist=" + @host.params['blacklist'].gsub(' ', ''))
   end
