@@ -13,6 +13,7 @@ oses:
 %>
 # Locale
 d-i debian-installer/locale string <%= @host.params['lang'] || 'en_US' %>
+d-i debian-installer/add-kernel-opts string net.ifnames=0
 # country and keyboard settings are automatic. Keep them ...
 # ... for wheezy and newer:
 d-i keyboard-configuration/xkb-keymap seen true
