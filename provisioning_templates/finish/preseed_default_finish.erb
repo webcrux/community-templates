@@ -28,6 +28,7 @@ oses:
 <% end -%>
 
 <%= snippet('remote_execution_ssh_keys') %>
+<%= snippet 'preseed_networking_setup' %>
 
 <% if puppet_enabled %>
 <% if @host.param_true?('enable-puppetlabs-pc1-repo') || @host.param_true?('enable-puppetlabs-repo') -%>
@@ -36,5 +37,4 @@ oses:
 <%= snippet 'webcrux_puppet_setup' %>
 <% end -%>
 
-<%= snippet 'preseed_networking_setup' %>
 /usr/bin/wget --no-proxy --quiet --output-document=/dev/null --no-check-certificate <%= foreman_url('built') %>
