@@ -73,4 +73,4 @@ puppet agent --enable
 # export a custom fact called 'is_installer' to allow detection of the installer environment in Puppet modules
 export FACTER_is_installer=true
 # passing a non-existent tag like "no_such_tag" to the puppet agent only initializes the node
-<%= bin_path %>/puppet agent --config <%= etc_path %>/puppet.conf --onetime <%= @host.param_true?('run-puppet-in-installer') ? '--tags bootstrap' : '--tags no_such_tag' %> <%= @host.puppetmaster.blank? ? '' : "--server #{@host.puppetmaster}" %> --no-daemonize
+<%= bin_path %>/puppet agent --config <%= etc_path %>/puppet.conf --show_diff --onetime <%= @host.param_true?('run-puppet-in-installer') ? '--tags bootstrap' : '--tags no_such_tag' %> <%= @host.puppetmaster.blank? ? '' : "--server #{@host.puppetmaster}" %> --no-daemonize
