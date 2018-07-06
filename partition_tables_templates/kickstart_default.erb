@@ -1,15 +1,16 @@
 <%#
 kind: ptable
-name: kickstart_default
+name: Kickstart default
+model: Ptable
 oses:
 - CentOS
 - Fedora
 - RedHat
 %>
 <%
-  installdevice = @host.params['installdevice'] ? @host.params['installdevice']               : 'default'
-  ondisk        = @host.params['installdevice'] ? "--ondisk=#{@host.params['installdevice']}" : ''
-  clear_osdisk  = @host.params['keepdevices']   ? "--drives=#{@host.params['installdevice']}" : ''
+  installdevice = host_param('installdevice') ? host_param('installdevice') : 'default'
+  ondisk        = host_param('installdevice') ? "--ondisk=#{installdevice}" : ''
+  clear_osdisk  = host_param('keepdevices')   ? "--drives=#{installdevice}" : ''
 %>
 
 zerombr
