@@ -1,6 +1,7 @@
 <%#
 kind: PXELinux
-name: preseed_default_pxe
+name: Preseed default PXELinux
+model: ProvisioningTemplate
 oses:
 - Debian
 - Ubuntu
@@ -16,22 +17,19 @@ oses:
 # lang = en_US
 #   System locale
 #
-# keyboard = us
-#   System keyborad layout
-#
 <%
   options = []
-  if @host.params['blacklist']
-    options << @host.params['blacklist'].split(',').collect{|x| "#{x.strip}.blacklist=yes"}.join(' ')
+  if host_param('blacklist')
+    options << host_param('blacklist').split(',').collect{|x| "#{x.strip}.blacklist=yes"}.join(' ')
   end
   if @host.operatingsystem.name == 'Debian'
     options << "auto=true"
     options << "domain=#{@host.domain}"
   else
-    options << "console-setup/ask_detect=false console-setup/layout=USA console-setup/variant=USA keyboard-configuration/layoutcode=#{@host.params['keyboard'] || 'us'} localechooser/translation/warn-light=true localechooser/translation/warn-severe=true"
+    options << 'console-setup/ask_detect=false console-setup/layout=USA console-setup/variant=USA keyboard-configuration/layoutcode=#{host_params('keyboard') || 'us'} localechooser/translation/warn-light=true localechooser/translation/warn-severe=true'
   end
-  options << "locale=#{@host.params['lang'] || 'en_US'}"
   options << "net.ifnames=0"
+  options << "locale=#{host_param('lang') || 'en_US'}"
   options = options.join(' ')
 -%>
 

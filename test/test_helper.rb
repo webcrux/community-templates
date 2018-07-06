@@ -1,5 +1,6 @@
 require 'erb'
 require 'tempfile'
+require 'nokogiri'
 
 class PartitioningHelper
   attr_reader :disk_layout
@@ -9,6 +10,8 @@ class PartitioningHelper
                      kickstart
                    when 'Debian'
                      preseed
+                   when 'Suse'
+                     autoyast
                    end
   end
 
@@ -23,6 +26,10 @@ class PartitioningHelper
   end
 
   def preseed
+    ''
+  end
+
+  def autoyast
     ''
   end
 end
@@ -41,15 +48,6 @@ class FakeStruct
   def to_s
     as_string
   end
-
-  # Roughly equivalent to HostCommon#param_true?/false in Foreman core
-  def param_true?(name)
-    params[name] == 'true'
-  end
-
-  def param_false?(name)
-    params[name] == 'false'
-  end
 end
 
 class FakeNamespace
@@ -58,6 +56,8 @@ class FakeNamespace
     @mediapath = 'url --url http://localhost/repo/xyz'
     @root_pass = '$1$redhat$9yxjZID8FYVlQzHGhasqW/'
     @grub_pass = 'blah'
+    @dynamic = false,
+    @static = false,
     @host = FakeStruct.new(
       :operatingsystem => FakeStruct.new(
         :name => name,
@@ -68,6 +68,7 @@ class FakeNamespace
         :release_name => release,
         :password_hash => 'SHA512'
       ),
+      :name => 'hostname',
       :architecture => 'x86_64',
       :domain => 'example.com',
       :diskLayout => PartitioningHelper.new(family).disk_layout,
@@ -88,8 +89,41 @@ class FakeNamespace
       :subnet => FakeStruct.new(
         :dhcp_boot_mode? => true
       ),
-      :mac => '00:00:00:00:00:01'
+      :mac => '00:00:00:00:00:01',
+      :primary_interface => FakeStruct.new(
+        :identifier => 'eth0',
+        :subnet => FakeStruct.new(
+          :dhcp_boot_mode? => true
+        ),
+      ),
+     :managed_interfaces => [
+       FakeStruct.new(
+         :identifier => 'eth0',
+         :managed? => true,
+         :primary => true,
+         :ip => '1.2.3.4',
+         :subnet => FakeStruct.new(
+           :dhcp_boot_mode? => true
+         ),
+       ),
+     ]
     )
+  end
+
+  def host_enc
+    @host.info
+  end
+
+  def host_param(name)
+    @host.params[name]
+  end
+
+  def host_param_true?(name)
+    host_param(name) == 'true'
+  end
+
+  def host_param_false?(name)
+    host_param(name) == 'false'
   end
 
   def snippet(*args)
@@ -124,6 +158,12 @@ module TemplatesHelper
     [$?.to_i, output]
   end
 
+  def autoyastvalidator(autoyast)
+    xml = File.open(autoyast) { |f| Nokogiri::XML(f) }
+    xml_errors = xml.errors
+    [xml_errors.length, xml_errors]
+  end
+
   def validate_erb(template, namespace, ksversion)
     t = Tempfile.new('community-templates-validate')
     t.write(render_erb(template, namespace))
@@ -133,6 +173,8 @@ module TemplatesHelper
       ksvalidator(ksversion, t.path)
     when 'Debian'
       debconfsetsel(t.path)
+    when 'Suse'
+      autoyastvalidator(t.path)
     end
   ensure
     t.unlink
