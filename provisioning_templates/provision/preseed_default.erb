@@ -67,6 +67,7 @@ d-i mirror/country string manual
 d-i mirror/http/hostname string <%= @preseed_server %>
 d-i mirror/http/directory string <%= @preseed_path %>
 d-i mirror/http/proxy string<%= proxy_string %>
+d-i debian-installer/add-kernel-opts string net.ifnames=0
 d-i mirror/codename string <%= @host.operatingsystem.release_name %>
 d-i mirror/suite string <%= @host.operatingsystem.release_name %>
 d-i mirror/udeb/suite string <%= @host.operatingsystem.release_name %>
