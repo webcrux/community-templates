@@ -250,7 +250,7 @@ fi
 <% if host_param_true?('enable-puppetlabs-pc1-repo') || host_param_true?('enable-puppetlabs-repo') || host_param_true?('enable-puppetlabs-puppet5-repo') -%>
 <%= snippet 'puppetlabs_repo' %>
 <% end -%>
-<%= snippet 'webcrux_puppet_setup' %>
+<%= snippet 'puppet_setup' %>
 <% end -%>
 
 <% if salt_enabled %>
