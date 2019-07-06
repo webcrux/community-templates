@@ -5,6 +5,7 @@ model: ProvisioningTemplate
 oses:
 - CentOS
 - Fedora
+- RedHat
 %>
 <%#
 This template accepts the following parameters:
@@ -18,16 +19,21 @@ This template accepts the following parameters:
 - enable-epel: boolean (default=true)
 - enable-puppetlabs-repo: boolean (default=false)
 - enable-puppetlabs-pc1-repo: boolean (default=false)
+- enable-puppetlabs-puppet5-repo: boolean (default=false)
 - salt_master: string (default=undef)
 - ntp-server: string (default="0.fedora.pool.ntp.org")
 - bootloader-append: string (default="nofb quiet splash=quiet")
 - disable-firewall: boolean (default=false)
 - package_upgrade: boolean (default=true)
 - disable-uek: boolean (default=false)
+- use-ntp: boolean (default depends on OS release)
+- fips_enabled: boolean (default=false)
 %>
 <%
   rhel_compatible = @host.operatingsystem.family == 'Redhat' && @host.operatingsystem.name != 'Fedora'
+  is_fedora = @host.operatingsystem.name == 'Fedora'
   os_major = @host.operatingsystem.major.to_i
+  os_minor = @host.operatingsystem.minor.to_i
   realm_compatible = (@host.operatingsystem.name == 'Fedora' && os_major >= 20) || (rhel_compatible && os_major >= 7)
   # safemode renderer does not support unary negation
   pm_set = @host.puppetmaster.empty? ? false : true
@@ -37,9 +43,31 @@ This template accepts the following parameters:
   salt_enabled = host_param('salt_master') ? true : false
   chef_enabled = @host.respond_to?(:chef_proxy) && @host.chef_proxy
   section_end = (rhel_compatible && os_major <= 5) ? '' : '%end'
+  use_ntp = host_param_true?('use-ntp') || (is_fedora && os_major < 16) || (rhel_compatible && os_major <= 7)
 %>
+<% if (is_fedora && os_major < 29) || (rhel_compatible && os_major <= 7) -%>
 install
+<% end -%>
+<%
+if host_param('kickstart_liveimg')
+  img_name = host_param('kickstart_liveimg')
+  liveimg_url = if host_param('kt_activation_keys')
+    repository_url(img_name, 'isos')
+  else
+    if img_name.match(%r|^([\w\-\+]+)://|)
+      img_name
+    else
+      "#{@host.operatingsystem.medium_uri(@host)}/#{img_name}"
+    end
+  end
+%>
+liveimg --url=<%= liveimg_url %> <%= proxy_string %>
+<% else %>
 <%= @mediapath %><%= proxy_string %>
+<% @additional_media.each do |medium| -%>
+repo --name <%= medium[:name] %> --baseurl <%= medium[:url] %> <%= medium[:install] ? ' --install' : '' %><%= proxy_string %>
+<% end -%>
+<% end %>
 lang <%= host_param('lang') || 'en_US.UTF-8' %>
 selinux --<%= host_param('selinux-mode') || host_param('selinux') || 'enforcing' %>
 keyboard <%= host_param('keyboard') || 'us' %>
@@ -51,7 +79,8 @@ skipx
 <% else -%>
 <% dhcp = !@static -%>
 <% end -%>
-network --bootproto <%= dhcp ? 'dhcp' : "static --ip=#{@host.ip} --netmask=#{subnet.mask} --gateway=#{subnet.gateway} --nameserver=#{[subnet.dns_primary, subnet.dns_secondary].select{ |item| item.present? }.join(',')}" %> --hostname <%= @host %><%= os_major >= 6 ? " --device=#{@host.mac}" : '' -%>
+
+network --bootproto <%= dhcp ? 'dhcp' : "static --ip=#{@host.ip} --netmask=#{subnet.mask} --gateway=#{subnet.gateway} --nameserver=#{[subnet.dns_primary, subnet.dns_secondary].select{ |item| item.present? }.join(',')} --mtu=#{subnet.mtu.to_s}" %> --hostname <%= @host %><%= os_major >= 6 ? " --device=#{@host.mac}" : '' -%>
 
 rootpw --iscrypted <%= root_pass %>
 <% if host_param_true?('disable-firewall') -%>
@@ -59,8 +88,17 @@ firewall --disable
 <% else -%>
 firewall --<%= os_major >= 6 ? 'service=' : '' %>ssh
 <% end -%>
-authconfig --useshadow --passalgo=<%= @host.operatingsystem.password_hash || 'sha256' %> --kickstart
+<% if (is_fedora && os_major >= 28) || (rhel_compatible && os_major > 7) -%>
+authselect --useshadow --passalgo=<%= @host.operatingsystem.password_hash.downcase || 'sha256' %> --kickstart
+<% else -%>
+authconfig --useshadow --passalgo=<%= @host.operatingsystem.password_hash.downcase || 'sha256' %> --kickstart
+<% end -%>
+<% if use_ntp -%>
 timezone --utc <%= host_param('time-zone') || 'UTC' %>
+<% else -%>
+timezone --utc <%= host_param('time-zone') || 'UTC' %> <%= host_param('ntp-server') ? "--ntpservers #{host_param('ntp-server')}" : '' %>
+<% end -%>
+
 <% if rhel_compatible -%>
 services --disabled gpm,sendmail,cups,pcmcia,isdn,rawdevices,hpoj,bluetooth,openibd,avahi-daemon,avahi-dnsconfd,hidd,hplip,pcscd
 <% end -%>
@@ -74,16 +112,16 @@ realm join --one-time-password='<%= @host.otp || "$HOST[OTP]" %>' <%= @host.real
 repo --name=fedora-everything --mirrorlist=https://mirrors.fedoraproject.org/metalink?repo=fedora-<%= @host.operatingsystem.major %>&arch=<%= @host.architecture %><%= proxy_string %>
 <% end -%>
 
-<% if @host.operatingsystem.name == 'OracleLinux' && os_major == 7 -%>
+<% if @host.operatingsystem.name == 'OracleLinux' && os_major == 7 && os_minor < 5 -%>
 repo --name="Server-Mysql"
 <% end -%>
 
-<% if @host.operatingsystem.name == 'Fedora' and os_major <= 16 -%>
+<% if @host.operatingsystem.name == 'Fedora' && os_major <= 16 -%>
 # Bootloader exception for Fedora 16:
-bootloader --append="<%= host_param('bootloader-append') || 'nofb quiet splash=quiet' %> <%=ks_console%>" <%= grub_pass %>
+bootloader --append="<%= host_param('bootloader-append') || 'nofb quiet splash=quiet' %> <%= ks_console %>" <%= @grub_pass %>
 part biosboot --fstype=biosboot --size=1
 <% else -%>
-bootloader --location=mbr --append="<%= host_param('bootloader-append') || 'nofb quiet splash=quiet' %>" <%= grub_pass %>
+bootloader --location=mbr --append="<%= host_param('bootloader-append') || 'nofb quiet splash=quiet' %>" <%= @grub_pass %>
 <% if os_major == 5 -%>
 key --skip
 <% end -%>
@@ -103,14 +141,23 @@ reboot
 <% end -%>
 
 %packages
+<%= snippet_if_exists(template_name + " custom packages") %>
 yum
 dhclient
+<% if use_ntp -%>
 ntp
+<% else -%>
+chrony
+<% end -%>
 wget
 @Core
 <% if os_major >= 6 -%>
 redhat-lsb-core
 <% end -%>
+<% if host_param_true?('fips_enabled') -%>
+<%=   snippet 'fips_packages' %>
+<% end -%>
+
 
 <% if salt_enabled %>
 salt-minion
@@ -119,6 +166,7 @@ salt-minion
 
 <% if @dynamic -%>
 %pre
+<%= snippet_if_exists(template_name + " custom pre") %>
 <%= @host.diskLayout %>
 <%= section_end -%>
 <% end -%>
@@ -133,12 +181,14 @@ cp -va /etc/resolv.conf /mnt/sysimage/etc/resolv.conf
 ) 2>&1 | tee /mnt/sysimage/root/install.postnochroot.log
 <%= section_end -%>
 
-%post
+<%#
+Main post script, if it fails the last post is still executed.
+%>
+%post --log=/mnt/sysimage/root/install.post.log
 logger "Starting anaconda <%= @host %> postinstall"
 exec < /dev/tty3 > /dev/tty3
 #changing to VT 3 so that we can see whats going on....
 /usr/bin/chvt 3
-(
 
 # Override udev net-rules on el7
 <% if @host.operatingsystem.family == 'Redhat' and @host.operatingsystem.major.to_i >= 7 -%>
@@ -147,7 +197,7 @@ mkdir -p /etc/udev/rules.d/60-net.rules
 /usr/bin/sed -i -e 's/quiet/net.ifnames=0 quiet/' /etc/default/grub
 /usr/sbin/grub2-mkconfig -o /boot/grub2/grub.cfg
 <% end -%>
-
+<%= snippet_if_exists(template_name + " custom post") %>
 <% if subnet.respond_to?(:dhcp_boot_mode?) || @host.subnet6.respond_to?(:dhcp_boot_mode?) -%>
 <%= snippet 'kickstart_networking_setup' %>
 <% end -%>
@@ -156,10 +206,12 @@ mkdir -p /etc/udev/rules.d/60-net.rules
 <% if @host.operatingsystem.family == 'Redhat' and @host.operatingsystem.major.to_i >= 7 -%>
 /usr/bin/systemctl disable NetworkManager.service
 <% end -%>
-
-#update local time
-echo "updating system time"
+echo "Updating system time"
+<% if use_ntp -%>
 /usr/sbin/ntpdate -sub <%= host_param('ntp-server') || '0.fedora.pool.ntp.org' %>
+<% else -%>
+/usr/bin/chronyc makestep
+<% end -%>
 /usr/sbin/hwclock --systohc
 
 <% if proxy_uri -%>
@@ -171,7 +223,9 @@ echo 'proxy = <%= proxy_uri %>' >> /etc/yum.conf
 <%= snippet 'epel' -%>
 <% end -%>
 
-<% if host_enc['parameters']['realm'] && @host.realm && @host.realm.realm_type == 'FreeIPA' -%>
+<%= snippet 'redhat_register' %>
+
+<% if host_enc['parameters']['realm'] && @host.realm && (@host.realm.realm_type == 'FreeIPA' || @host.realm.realm_type == 'Red Hat Identity Management') -%>
 <%= snippet 'freeipa_register' %>
 <% end -%>
 
@@ -185,6 +239,8 @@ fi
 <% end -%>
 
 <%= snippet('remote_execution_ssh_keys') %>
+
+<%= snippet "blacklist_kernel_modules" %>
 
 <% if chef_enabled %>
 <%= snippet 'chef_client' %>
@@ -209,12 +265,26 @@ sed -e 's/DEFAULTKERNEL=kernel-uek/DEFAULTKERNEL=kernel/g' -i /etc/sysconfig/ker
 
 <%= snippet('ansible_provisioning_callback') %>
 
+<%= snippet 'efibootmgr_netboot' %>
+
+touch /tmp/foreman_built
+<%= section_end -%>
+
+<%#
+The last post section halts Anaconda to prevent endless loop
+%>
+<% if (is_fedora && os_major < 20) || (rhel_compatible && os_major < 7) -%>
+%post
+<% else -%>
+%post --erroronfail
+<% end -%>
+if test -f /tmp/foreman_built; then
+  echo "calling home: build is done!"
+  <%= indent(2, skip1: true) { snippet('built', :variables => { :endpoint => 'built', :method => 'POST', :body_file => '/mnt/sysimage/root/install.post.log' }) } -%>
+else
+  echo "calling home: build failed!"
+  <%= indent(2, skip1: true) { snippet('built', :variables => { :endpoint => 'failed', :method => 'POST', :body_file => '/mnt/sysimage/root/install.post.log' }) } -%>
+fi
+
 sync
-
-# Inform the build system that we are done.
-echo "Informing Foreman that we are built"
-wget -q -O /dev/null --no-check-certificate <%= foreman_url('built') %>
-) 2>&1 | tee /root/install.post.log
-exit 0
-
 <%= section_end -%>

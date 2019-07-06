@@ -26,13 +26,17 @@ oses:
 /bin/sed -i "s/.*dns-search.*/\tdns-search <%= @host.domain %>/g" /etc/network/interfaces
 /bin/sed -i "s/^<%= @host.ip %>.*/<%= @host.ip %>\t<%= @host.shortname %>.<%= @host.domain %>\t<%= @host.shortname %>/g" /etc/hosts
 /bin/echo <%= @host.shortname %> > /etc/hostname
+/bin/hostname  <%= @host.shortname %>.<%= @host.domain %>
 <% end -%>
 
+<%= snippet_if_exists(template_name + " custom snippet") %>
 <% if host_enc['parameters']['realm'] && @host.realm && @host.realm.realm_type == 'FreeIPA' -%>
 <%= snippet 'freeipa_register' %>
 <% end -%>
 
 <%= snippet('remote_execution_ssh_keys') %>
+
+<%= snippet "blacklist_kernel_modules" %>
 
 <% if chef_enabled %>
 <%= snippet 'chef_client' %>
@@ -50,4 +54,5 @@ oses:
 <% end -%>
 
 <%= snippet 'preseed_networking_setup' %>
-/usr/bin/wget --no-proxy --quiet --output-document=/dev/null --no-check-certificate <%= foreman_url('built') %>
+<%= snippet 'efibootmgr_netboot' %>
+<%= snippet 'built' %>
