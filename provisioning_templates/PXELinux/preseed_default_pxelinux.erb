@@ -26,7 +26,7 @@ oses:
     options << "auto=true"
     options << "domain=#{@host.domain}"
   else
-    options << 'console-setup/ask_detect=false console-setup/layout=USA console-setup/variant=USA keyboard-configuration/layoutcode=#{host_params('keyboard') || 'us'} localechooser/translation/warn-light=true localechooser/translation/warn-severe=true'
+    options << "console-setup/ask_detect=false console-setup/layout=USA console-setup/variant=USA keyboard-configuration/layoutcode=#{host_param('keyboard') || 'us'} localechooser/translation/warn-light=true localechooser/translation/warn-severe=true"
   end
   options << "net.ifnames=0"
   options << "locale=#{host_param('lang') || 'en_US'}"
